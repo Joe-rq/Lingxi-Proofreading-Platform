@@ -5,9 +5,9 @@ import json
 import logging
 from datetime import datetime
 
-from config import Config
-from models import db, User, APIKey, ProofreadingHistory
-from ai_services import get_ai_service
+from .config import Config
+from .models import db, User, APIKey, ProofreadingHistory
+from .ai_services import get_ai_service
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -159,6 +159,62 @@ def api_get_user_models():
         return jsonify({'models': available_models})
     except Exception as e:
         logger.error(f"Error getting user models: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/add', methods=['POST'])
+@login_required
+def api_add_custom_model():
+    """添加自定义模型"""
+    try:
+        data = request.get_json()
+        provider = data.get('provider')
+        model_id = data.get('model_id')
+        model_name = data.get('model_name')
+        description = data.get('description', '')
+        
+        if not all([provider, model_id, model_name]):
+            return jsonify({'error': '缺少必需参数'}), 400
+        
+        # 检查提供商是否存在
+        if provider not in Config.SUPPORTED_PROVIDERS:
+            return jsonify({'error': '不支持的提供商'}), 400
+        
+        # 添加自定义模型
+        success = Config.add_custom_model(provider, model_id, model_name, description)
+        
+        if success:
+            return jsonify({'message': '自定义模型添加成功'})
+        else:
+            return jsonify({'error': '模型已存在或添加失败'}), 400
+            
+    except Exception as e:
+        logger.error(f"Error adding custom model: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/update', methods=['POST'])
+@login_required
+def api_update_model():
+    """更新模型信息"""
+    try:
+        data = request.get_json()
+        provider = data.get('provider')
+        model_id = data.get('model_id')
+        model_name = data.get('model_name')
+        description = data.get('description')
+        
+        if not all([provider, model_id]):
+            return jsonify({'error': '缺少必需参数'}), 400
+        
+        # 更新模型信息
+        success = Config.update_model_info(provider, model_id, model_name, description)
+        
+        if success:
+            return jsonify({'message': '模型信息更新成功'})
+        else:
+            return jsonify({'error': '模型不存在或更新失败'}), 400
+            
+    except Exception as e:
+        logger.error(f"Error updating model: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/update_api_key_models/<int:key_id>', methods=['POST'])

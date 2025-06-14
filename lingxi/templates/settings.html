@@ -6,136 +6,228 @@
 <div class="row">
     <div class="col-12">
         <h2><i class="fas fa-cog me-2"></i>设置</h2>
-        <p class="text-muted">管理您的AI模型API密钥</p>
+        <p class="text-muted">管理您的AI模型API密钥和自定义模型</p>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-lg-6">
-        <div class="card">
-            <div class="card-header">
-                <h5><i class="fas fa-plus me-2"></i>添加API密钥</h5>
+<!-- 导航标签 -->
+<ul class="nav nav-tabs mb-4" id="settingsTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="api-keys-tab" data-bs-toggle="tab" data-bs-target="#api-keys" type="button" role="tab">
+            <i class="fas fa-key me-2"></i>API密钥管理
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="custom-models-tab" data-bs-toggle="tab" data-bs-target="#custom-models" type="button" role="tab">
+            <i class="fas fa-robot me-2"></i>自定义模型
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="settingsTabContent">
+    <!-- API密钥管理标签页 -->
+    <div class="tab-pane fade show active" id="api-keys" role="tabpanel">
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-plus me-2"></i>添加API密钥</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="POST">
+                            <div class="mb-3">
+                                <label for="provider" class="form-label">AI服务提供商</label>
+                                <select class="form-select" id="provider" name="provider" required>
+                                    <option value="">请选择...</option>
+                                    {% for key, name in supported_providers.items() %}
+                                    <option value="{{ key }}">{{ name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="api_key" class="form-label">API密钥</label>
+                                <input type="password" class="form-control" id="api_key" name="api_key" required>
+                                <div class="form-text">您的API密钥将被安全加密存储</div>
+                            </div>
+                            
+                            <div class="mb-3" id="base-url-group" style="display: none;">
+                                <label for="base_url" class="form-label">Base URL</label>
+                                <input type="url" class="form-control" id="base_url" name="base_url" 
+                                       placeholder="https://api.example.com/v1">
+                                <div class="form-text">自定义OpenAI兼容API的基础URL</div>
+                            </div>
+                            
+                            <div class="mb-3" id="models-group" style="display: none;">
+                                <label class="form-label">启用的模型</label>
+                                <div id="models-list" class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                                    <!-- 模型列表将通过JavaScript动态加载 -->
+                                </div>
+                                <div class="form-text">选择要启用的模型，不选择则启用所有模型</div>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save me-2"></i>保存密钥
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <form method="POST">
-                    <div class="mb-3">
-                        <label for="provider" class="form-label">AI服务提供商</label>
-                        <select class="form-select" id="provider" name="provider" required>
-                            <option value="">请选择...</option>
-                            {% for key, name in supported_providers.items() %}
-                            <option value="{{ key }}">{{ name }}</option>
+            
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-key me-2"></i>已配置的API密钥</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if api_keys %}
+                            {% for api_key in api_keys %}
+                            <div class="border-bottom py-3">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1">{{ supported_providers.get(api_key.provider, api_key.provider) }}</h6>
+                                        <small class="text-muted">
+                                            <i class="fas fa-check-circle text-success me-1"></i>已配置
+                                            {% if api_key.base_url %}
+                                            <br><small>Base URL: {{ api_key.base_url }}</small>
+                                            {% endif %}
+                                        </small>
+                                        
+                                        <!-- 显示启用的模型 -->
+                                        {% set enabled_models = api_key.get_enabled_models() %}
+                                        {% set available_models = api_key.get_available_models() %}
+                                        <div class="mt-2">
+                                            <small class="text-muted d-block">
+                                                <strong>可用模型:</strong>
+                                                {% if enabled_models %}
+                                                    {% for model in available_models %}
+                                                    <span class="badge bg-primary me-1">{{ model.name }}</span>
+                                                    {% endfor %}
+                                                {% else %}
+                                                    <span class="text-success">全部模型</span>
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <div class="btn-group-vertical btn-group-sm">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" 
+                                                onclick="showModelConfig({{ api_key.id }}, '{{ api_key.provider }}')"
+                                                data-bs-toggle="modal" data-bs-target="#modelConfigModal">
+                                            <i class="fas fa-cogs"></i> 模型配置
+                                        </button>
+                                        <a href="{{ url_for('delete_api_key', key_id=api_key.id) }}" 
+                                           class="btn btn-outline-danger btn-sm"
+                                           onclick="return confirm('确定要删除这个API密钥吗？')">
+                                            <i class="fas fa-trash"></i> 删除
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
                             {% endfor %}
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="api_key" class="form-label">API密钥</label>
-                        <input type="password" class="form-control" id="api_key" name="api_key" required>
-                        <div class="form-text">您的API密钥将被安全加密存储</div>
-                    </div>
-                    
-                    <div class="mb-3" id="base-url-group" style="display: none;">
-                        <label for="base_url" class="form-label">Base URL</label>
-                        <input type="url" class="form-control" id="base_url" name="base_url" 
-                               placeholder="https://api.example.com/v1">
-                        <div class="form-text">自定义OpenAI兼容API的基础URL</div>
-                    </div>
-                    
-                    <div class="mb-3" id="models-group" style="display: none;">
-                        <label class="form-label">启用的模型</label>
-                        <div id="models-list" class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
-                            <!-- 模型列表将通过JavaScript动态加载 -->
+                        {% else %}
+                        <div class="text-center text-muted">
+                            <i class="fas fa-key fa-3x mb-3"></i>
+                            <p>还未配置任何API密钥</p>
+                            <p>请在左侧添加您的AI模型API密钥</p>
                         </div>
-                        <div class="form-text">选择要启用的模型，不选择则启用所有模型</div>
+                        {% endif %}
                     </div>
-                    
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-2"></i>保存密钥
-                    </button>
-                </form>
+                </div>
+                
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h6><i class="fas fa-info-circle me-2"></i>使用说明</h6>
+                    </div>
+                    <div class="card-body">
+                        <h6>支持的AI服务商：</h6>
+                        <ul class="list-unstyled">
+                            <li><i class="fas fa-check text-success me-2"></i><strong>OpenAI：</strong>支持GPT系列和o3系列模型</li>
+                            <li><i class="fas fa-check text-success me-2"></i><strong>Google Gemini：</strong>支持Gemini和PaLM系列模型</li>
+                            <li><i class="fas fa-check text-success me-2"></i><strong>DeepSeek：</strong>支持DeepSeek-R1、V3等最新模型</li>
+                            <li><i class="fas fa-check text-success me-2"></i><strong>Qwen：</strong>支持Qwen3、Qwen2.5等系列模型</li>
+                            <li><i class="fas fa-check text-success me-2"></i><strong>智谱AI：</strong>支持GLM-4系列和PanGu模型</li>
+                            <li><i class="fas fa-check text-success me-2"></i><strong>Custom OpenAI：</strong>支持OpenAI格式的自定义API</li>
+                        </ul>
+                        
+                        <div class="alert alert-info mt-3">
+                            <small>
+                                <strong>安全说明：</strong>您的API密钥采用高级加密算法存储，平台不会保存明文密钥。
+                            </small>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-    
-    <div class="col-lg-6">
-        <div class="card">
-            <div class="card-header">
-                <h5><i class="fas fa-key me-2"></i>已配置的API密钥</h5>
+
+    <!-- 自定义模型标签页 -->
+    <div class="tab-pane fade" id="custom-models" role="tabpanel">
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-plus me-2"></i>添加自定义模型</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="customModelForm">
+                            <div class="mb-3">
+                                <label for="custom-provider" class="form-label">选择提供商</label>
+                                <select class="form-select" id="custom-provider" required>
+                                    <option value="">请选择提供商...</option>
+                                    {% for key, name in supported_providers.items() %}
+                                    <option value="{{ key }}">{{ name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="model-id" class="form-label">模型ID</label>
+                                <input type="text" class="form-control" id="model-id" required 
+                                       placeholder="例如: gpt-4o-custom">
+                                <div class="form-text">API调用时使用的模型标识符</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="model-name" class="form-label">显示名称</label>
+                                <input type="text" class="form-control" id="model-name" required 
+                                       placeholder="例如: GPT-4o 自定义版">
+                                <div class="form-text">在界面上显示的友好名称</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="model-description" class="form-label">模型描述</label>
+                                <textarea class="form-control" id="model-description" rows="3" 
+                                          placeholder="描述模型的特点和适用场景..."></textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>添加模型
+                            </button>
+                        </form>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                {% if api_keys %}
-                    {% for api_key in api_keys %}
-                    <div class="border-bottom py-3">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="flex-grow-1">
-                                <h6 class="mb-1">{{ supported_providers.get(api_key.provider, api_key.provider) }}</h6>
-                                <small class="text-muted">
-                                    <i class="fas fa-check-circle text-success me-1"></i>已配置
-                                    {% if api_key.base_url %}
-                                    <br><small>Base URL: {{ api_key.base_url }}</small>
-                                    {% endif %}
-                                </small>
-                                
-                                <!-- 显示启用的模型 -->
-                                {% set enabled_models = api_key.get_enabled_models() %}
-                                {% set available_models = api_key.get_available_models() %}
-                                <div class="mt-2">
-                                    <small class="text-muted d-block">
-                                        <strong>可用模型:</strong>
-                                        {% if enabled_models %}
-                                            {% for model in available_models %}
-                                            <span class="badge bg-primary me-1">{{ model.name }}</span>
-                                            {% endfor %}
-                                        {% else %}
-                                            <span class="text-success">全部模型</span>
-                                        {% endif %}
-                                    </small>
-                                </div>
-                            </div>
-                            <div class="btn-group-vertical btn-group-sm">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" 
-                                        onclick="showModelConfig({{ api_key.id }}, '{{ api_key.provider }}')"
-                                        data-bs-toggle="modal" data-bs-target="#modelConfigModal">
-                                    <i class="fas fa-cogs"></i> 模型配置
-                                </button>
-                                <a href="{{ url_for('delete_api_key', key_id=api_key.id) }}" 
-                                   class="btn btn-outline-danger btn-sm"
-                                   onclick="return confirm('确定要删除这个API密钥吗？')">
-                                    <i class="fas fa-trash"></i> 删除
-                                </a>
-                            </div>
+            
+            <div class="col-lg-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="fas fa-list me-2"></i>当前模型列表</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="provider-filter" class="form-label">筛选提供商</label>
+                            <select class="form-select" id="provider-filter">
+                                <option value="">所有提供商</option>
+                                {% for key, name in supported_providers.items() %}
+                                <option value="{{ key }}">{{ name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div id="models-display" style="max-height: 400px; overflow-y: auto;">
+                            <!-- 模型列表将通过JavaScript动态显示 -->
                         </div>
                     </div>
-                    {% endfor %}
-                {% else %}
-                <div class="text-center text-muted">
-                    <i class="fas fa-key fa-3x mb-3"></i>
-                    <p>还未配置任何API密钥</p>
-                    <p>请在左侧添加您的AI模型API密钥</p>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-        
-        <div class="card mt-4">
-            <div class="card-header">
-                <h6><i class="fas fa-info-circle me-2"></i>使用说明</h6>
-            </div>
-            <div class="card-body">
-                <h6>支持的AI服务商：</h6>
-                <ul class="list-unstyled">
-                    <li><i class="fas fa-check text-success me-2"></i><strong>OpenAI：</strong>支持GPT系列模型</li>
-                    <li><i class="fas fa-check text-success me-2"></i><strong>Google Gemini：</strong>Google的AI模型</li>
-                    <li><i class="fas fa-check text-success me-2"></i><strong>DeepSeek：</strong>深度求索AI模型</li>
-                    <li><i class="fas fa-check text-success me-2"></i><strong>Qwen：</strong>阿里云通义千问</li>
-                    <li><i class="fas fa-check text-success me-2"></i><strong>智谱AI：</strong>智谱GLM系列模型</li>
-                    <li><i class="fas fa-check text-success me-2"></i><strong>Custom OpenAI：</strong>支持OpenAI格式的自定义API</li>
-                </ul>
-                
-                <div class="alert alert-info mt-3">
-                    <small>
-                        <strong>安全说明：</strong>您的API密钥采用高级加密算法存储，平台不会保存明文密钥。
-                    </small>
                 </div>
             </div>
         </div>
@@ -168,6 +260,38 @@
         </div>
     </div>
 </div>
+
+<!-- 编辑模型模态框 -->
+<div class="modal fade" id="editModelModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">编辑模型</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editModelForm">
+                    <input type="hidden" id="edit-provider">
+                    <input type="hidden" id="edit-model-id">
+                    
+                    <div class="mb-3">
+                        <label for="edit-model-name" class="form-label">显示名称</label>
+                        <input type="text" class="form-control" id="edit-model-name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-model-description" class="form-label">模型描述</label>
+                        <textarea class="form-control" id="edit-model-description" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="updateModel()">保存修改</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -181,7 +305,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const baseUrlGroup = document.getElementById('base-url-group');
     const baseUrlInput = document.getElementById('base_url');
     const modelsGroup = document.getElementById('models-group');
+    const customModelForm = document.getElementById('customModelForm');
+    const providerFilter = document.getElementById('provider-filter');
 
+    // API密钥提供商选择
     if (providerSelect) {
         providerSelect.addEventListener('change', function() {
             const selectedProvider = this.value;
@@ -205,6 +332,36 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // 自定义模型表单提交
+    if (customModelForm) {
+        customModelForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            addCustomModel();
+        });
+    }
+
+    // 提供商筛选
+    if (providerFilter) {
+        providerFilter.addEventListener('change', function() {
+            displayModels(this.value);
+        });
+    }
+
+    // 初始化显示所有模型
+    displayModels();
+    
+    // 为编辑模型按钮添加事件监听器
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.edit-model-btn')) {
+            const btn = e.target.closest('.edit-model-btn');
+            const provider = btn.dataset.provider;
+            const modelId = btn.dataset.modelId;
+            const modelName = btn.dataset.modelName;
+            const description = btn.dataset.modelDescription;
+            editModel(provider, modelId, modelName, description);
+        }
+    });
 });
 
 function loadProviderModels(provider, containerId) {
@@ -239,14 +396,152 @@ function showModelConfig(apiKeyId, provider) {
     // 更新表单action
     const form = document.getElementById('modelConfigForm');
     form.action = `/update_api_key_models/${apiKeyId}`;
-    
-    // 可以在这里加载已选择的模型并预选中
-    // TODO: 从服务器获取当前API密钥的启用模型列表
 }
 
 function saveModelConfig() {
     const form = document.getElementById('modelConfigForm');
     form.submit();
+}
+
+function addCustomModel() {
+    const provider = document.getElementById('custom-provider').value;
+    const modelId = document.getElementById('model-id').value;
+    const modelName = document.getElementById('model-name').value;
+    const description = document.getElementById('model-description').value;
+
+    if (!provider || !modelId || !modelName) {
+        alert('请填写所有必需字段');
+        return;
+    }
+
+    fetch('/api/models/add', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            provider: provider,
+            model_id: modelId,
+            model_name: modelName,
+            description: description
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('添加失败: ' + data.error);
+        } else {
+            alert('自定义模型添加成功！');
+            document.getElementById('customModelForm').reset();
+            // 刷新模型显示
+            location.reload();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('添加失败，请重试');
+    });
+}
+
+function displayModels(filterProvider = '') {
+    const container = document.getElementById('models-display');
+    if (!container) return;
+
+    let html = '';
+    
+    Object.keys(aiModels).forEach(provider => {
+        if (filterProvider && provider !== filterProvider) return;
+        
+        const providerName = getProviderName(provider);
+        const models = aiModels[provider].models;
+        
+        html += `
+            <div class="mb-4">
+                <h6 class="text-primary">${providerName}</h6>
+                <div class="list-group">
+        `;
+        
+        models.forEach(model => {
+            html += `
+                <div class="list-group-item d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="fw-bold">${model.name}</div>
+                        <small class="text-muted">ID: ${model.id}</small>
+                        <p class="mb-1 small">${model.description}</p>
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm edit-model-btn" 
+                            data-provider="${provider}"
+                            data-model-id="${model.id}"
+                            data-model-name="${model.name}"
+                            data-model-description="${model.description}"
+                            data-bs-toggle="modal" data-bs-target="#editModelModal">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </div>
+            `;
+        });
+        
+        html += `
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+function getProviderName(provider) {
+    const providerNames = {
+        'openai': 'OpenAI',
+        'gemini': 'Google Gemini',
+        'deepseek': 'DeepSeek',
+        'qwen': 'Qwen',
+        'zhipu': '智谱AI',
+        'custom_openai': 'Custom OpenAI'
+    };
+    return providerNames[provider] || provider;
+}
+
+function editModel(provider, modelId, modelName, description) {
+    document.getElementById('edit-provider').value = provider;
+    document.getElementById('edit-model-id').value = modelId;
+    document.getElementById('edit-model-name').value = modelName;
+    document.getElementById('edit-model-description').value = description;
+}
+
+function updateModel() {
+    const provider = document.getElementById('edit-provider').value;
+    const modelId = document.getElementById('edit-model-id').value;
+    const modelName = document.getElementById('edit-model-name').value;
+    const description = document.getElementById('edit-model-description').value;
+
+    fetch('/api/models/update', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            provider: provider,
+            model_id: modelId,
+            model_name: modelName,
+            description: description
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('更新失败: ' + data.error);
+        } else {
+            alert('模型信息更新成功！');
+            // 关闭模态框并刷新显示
+            bootstrap.Modal.getInstance(document.getElementById('editModelModal')).hide();
+            location.reload();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('更新失败，请重试');
+    });
 }
 </script>
 {% endblock %} 
