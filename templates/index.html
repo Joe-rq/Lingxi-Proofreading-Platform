@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}文本校对 - 灵犀校对平台{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-spell-check me-2"></i>文本校对</h2>
+        <p class="text-muted">使用您自己的AI模型API进行专业文本校对</p>
+    </div>
+</div>
+
+{% if not available_models %}
+<div class="alert alert-warning" role="alert">
+    <h5><i class="fas fa-exclamation-triangle me-2"></i>请先配置AI模型</h5>
+    <p>您还未配置任何AI模型的API密钥。</p>
+    <a href="{{ url_for('settings') }}" class="btn btn-primary">
+        <i class="fas fa-cog me-2"></i>前往设置
+    </a>
+</div>
+{% else %}
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-edit me-2"></i>输入文本</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="model-select" class="form-label">选择AI模型</label>
+                    <select class="form-select" id="model-select" required>
+                        <option value="">请选择模型...</option>
+                        {% for model in available_models %}
+                        <option value="{{ model.provider }}">{{ model.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="input-text" class="form-label">待校对文本</label>
+                    <textarea class="form-control" id="input-text" rows="10" 
+                              placeholder="请输入需要校对的文本..."></textarea>
+                    <div class="form-text">
+                        <span id="char-count">0</span> 字符
+                    </div>
+                </div>
+                <button type="button" class="btn btn-primary" id="proofread-btn">
+                    <i class="fas fa-magic me-2"></i>开始校对
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-check-circle me-2"></i>校对结果</h5>
+            </div>
+            <div class="card-body">
+                <div id="loading" class="text-center d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">校对中...</span>
+                    </div>
+                    <p class="mt-2">AI正在校对中，请稍候...</p>
+                </div>
+                
+                <div id="results" class="d-none">
+                    <div class="mb-4">
+                        <h6><i class="fas fa-list me-2"></i>发现的问题</h6>
+                        <div id="issues-list" class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                            <!-- 问题列表将在这里显示 -->
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h6><i class="fas fa-file-alt me-2"></i>优化后全文</h6>
+                        <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                            <pre id="corrected-text" class="mb-0" style="white-space: pre-wrap; font-family: inherit;"></pre>
+                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="copy-btn">
+                            <i class="fas fa-copy me-1"></i>复制文本
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="no-results" class="text-center text-muted">
+                    <i class="fas fa-file-text fa-3x mb-3"></i>
+                    <p>校对结果将在这里显示</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const inputText = document.getElementById('input-text');
+    const charCount = document.getElementById('char-count');
+    const modelSelect = document.getElementById('model-select');
+    const proofreadBtn = document.getElementById('proofread-btn');
+    const loading = document.getElementById('loading');
+    const results = document.getElementById('results');
+    const noResults = document.getElementById('no-results');
+    const issuesList = document.getElementById('issues-list');
+    const correctedText = document.getElementById('corrected-text');
+    const copyBtn = document.getElementById('copy-btn');
+
+    // 字符计数
+    if (inputText && charCount) {
+        inputText.addEventListener('input', function() {
+            charCount.textContent = this.value.length;
+        });
+    }
+
+    // 校对按钮点击事件
+    if (proofreadBtn) {
+        proofreadBtn.addEventListener('click', function() {
+            const text = inputText.value.trim();
+            const provider = modelSelect.value;
+
+            if (!text) {
+                alert('请输入要校对的文本');
+                return;
+            }
+
+            if (!provider) {
+                alert('请选择AI模型');
+                return;
+            }
+
+            // 显示加载状态
+            loading.classList.remove('d-none');
+            results.classList.add('d-none');
+            noResults.classList.add('d-none');
+            proofreadBtn.disabled = true;
+
+            // 调用API
+            fetch('/api/proofread', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    text: text,
+                    provider: provider
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('校对失败: ' + data.error);
+                    return;
+                }
+
+                // 显示问题列表
+                displayIssues(data.issues);
+                
+                // 显示校对后文本
+                correctedText.textContent = data.corrected_text;
+                
+                // 显示结果
+                results.classList.remove('d-none');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('校对失败，请重试');
+            })
+            .finally(() => {
+                loading.classList.add('d-none');
+                proofreadBtn.disabled = false;
+            });
+        });
+    }
+
+    // 复制按钮事件
+    if (copyBtn) {
+        copyBtn.addEventListener('click', function() {
+            navigator.clipboard.writeText(correctedText.textContent)
+                .then(() => {
+                    const originalText = this.innerHTML;
+                    this.innerHTML = '<i class="fas fa-check me-1"></i>已复制';
+                    setTimeout(() => {
+                        this.innerHTML = originalText;
+                    }, 2000);
+                })
+                .catch(() => {
+                    alert('复制失败，请手动复制');
+                });
+        });
+    }
+
+    function displayIssues(issues) {
+        if (!issues || issues.length === 0) {
+            issuesList.innerHTML = '<p class="text-muted mb-0">未发现明显问题</p>';
+            return;
+        }
+
+        let html = '';
+        issues.forEach((issue, index) => {
+            html += `
+                <div class="issue-item mb-3 p-2 border rounded">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <span class="badge bg-warning text-dark">${issue.type}</span>
+                        <small class="text-muted">${issue.position}</small>
+                    </div>
+                    <div class="mt-2">
+                        <strong>原文：</strong><span class="text-danger">${issue.original}</span><br>
+                        <strong>修正：</strong><span class="text-success">${issue.corrected}</span><br>
+                        <small class="text-muted">${issue.explanation}</small>
+                    </div>
+                </div>
+            `;
+        });
+        
+        issuesList.innerHTML = html;
+    }
+});
+</script>
+{% endblock %} 

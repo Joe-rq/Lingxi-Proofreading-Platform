@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}校对历史 - 灵犀校对平台{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-history me-2"></i>校对历史</h2>
+        <p class="text-muted">查看您的历史校对记录</p>
+    </div>
+</div>
+
+{% if histories.items %}
+<div class="row">
+    {% for history in histories.items %}
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="mb-0">
+                        <i class="fas fa-clock me-2"></i>{{ history.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                    </h6>
+                    <small class="text-muted">使用模型: {{ history.model_used }}</small>
+                </div>
+                <button class="btn btn-outline-primary btn-sm" type="button" 
+                        data-bs-toggle="collapse" data-bs-target="#history-{{ history.id }}" 
+                        aria-expanded="false">
+                    <i class="fas fa-eye me-1"></i>查看详情
+                </button>
+            </div>
+            
+            <div class="collapse" id="history-{{ history.id }}">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-lg-6">
+                            <h6><i class="fas fa-file-text me-2"></i>原始文本</h6>
+                            <div class="border rounded p-3 bg-light" style="max-height: 200px; overflow-y: auto;">
+                                <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ history.original_text }}</pre>
+                            </div>
+                        </div>
+                        
+                        <div class="col-lg-6">
+                            <h6><i class="fas fa-check-circle me-2"></i>校对后文本</h6>
+                            <div class="border rounded p-3 bg-light" style="max-height: 200px; overflow-y: auto;">
+                                <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit;">{{ history.corrected_text }}</pre>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm mt-2" 
+                                    onclick="copyText('{{ history.id }}')">
+                                <i class="fas fa-copy me-1"></i>复制校对文本
+                            </button>
+                        </div>
+                    </div>
+                    
+                    {% if history.issues %}
+                    <div class="mt-4">
+                        <h6><i class="fas fa-list me-2"></i>发现的问题 ({{ history.issues|length }}个)</h6>
+                        <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                            {% for issue in history.issues %}
+                            <div class="issue-item mb-3 p-2 border rounded">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <span class="badge bg-warning text-dark">{{ issue.type }}</span>
+                                    <small class="text-muted">{{ issue.position }}</small>
+                                </div>
+                                <div class="mt-2">
+                                    <strong>原文：</strong><span class="text-danger">{{ issue.original }}</span><br>
+                                    <strong>修正：</strong><span class="text-success">{{ issue.corrected }}</span><br>
+                                    <small class="text-muted">{{ issue.explanation }}</small>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- 分页 -->
+{% if histories.pages > 1 %}
+<nav aria-label="校对历史分页">
+    <ul class="pagination justify-content-center">
+        {% if histories.has_prev %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('history', page=histories.prev_num) }}">上一页</a>
+        </li>
+        {% endif %}
+        
+        {% for page_num in histories.iter_pages() %}
+            {% if page_num %}
+                {% if page_num != histories.page %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('history', page=page_num) }}">{{ page_num }}</a>
+                </li>
+                {% else %}
+                <li class="page-item active">
+                    <span class="page-link">{{ page_num }}</span>
+                </li>
+                {% endif %}
+            {% else %}
+            <li class="page-item disabled">
+                <span class="page-link">…</span>
+            </li>
+            {% endif %}
+        {% endfor %}
+        
+        {% if histories.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="{{ url_for('history', page=histories.next_num) }}">下一页</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="text-center">
+    <i class="fas fa-history fa-4x text-muted mb-4"></i>
+    <h4 class="text-muted">暂无校对历史</h4>
+    <p class="text-muted">完成首次文本校对后，历史记录将显示在这里</p>
+    <a href="{{ url_for('index') }}" class="btn btn-primary">
+        <i class="fas fa-spell-check me-2"></i>开始校对
+    </a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copyText(historyId) {
+    // 获取对应历史记录的校对文本
+    const historyElement = document.getElementById('history-' + historyId);
+    const correctedTextElement = historyElement.querySelector('.col-lg-6:last-child pre');
+    const text = correctedTextElement.textContent;
+    
+    navigator.clipboard.writeText(text)
+        .then(() => {
+            // 找到对应的按钮并更新其状态
+            const button = event.target.closest('button');
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-check me-1"></i>已复制';
+            button.classList.remove('btn-outline-primary');
+            button.classList.add('btn-success');
+            
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.classList.remove('btn-success');
+                button.classList.add('btn-outline-primary');
+            }, 2000);
+        })
+        .catch(() => {
+            alert('复制失败，请手动复制');
+        });
+}
+</script>
+{% endblock %} 

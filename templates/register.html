@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}注册 - 灵犀校对平台{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow">
+            <div class="card-header bg-success text-white text-center">
+                <h4><i class="fas fa-user-plus me-2"></i>用户注册</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">用户名</label>
+                        <input type="text" class="form-control" id="username" name="username" required>
+                        <div class="form-text">用户名用于登录，请选择易记的名称</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">密码</label>
+                        <input type="password" class="form-control" id="password" name="password" required>
+                        <div class="form-text">请设置安全强度较高的密码</div>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="fas fa-user-plus me-2"></i>注册
+                    </button>
+                </form>
+            </div>
+            <div class="card-footer text-center">
+                <small class="text-muted">
+                    已有账户？ <a href="{{ url_for('login') }}">立即登录</a>
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

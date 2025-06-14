@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}设置 - 灵犀校对平台{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2><i class="fas fa-cog me-2"></i>设置</h2>
+        <p class="text-muted">管理您的AI模型API密钥</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-plus me-2"></i>添加API密钥</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="provider" class="form-label">AI服务提供商</label>
+                        <select class="form-select" id="provider" name="provider" required>
+                            <option value="">请选择...</option>
+                            {% for key, name in supported_providers.items() %}
+                            <option value="{{ key }}">{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="api_key" class="form-label">API密钥</label>
+                        <input type="password" class="form-control" id="api_key" name="api_key" required>
+                        <div class="form-text">您的API密钥将被安全加密存储</div>
+                    </div>
+                    
+                    <div class="mb-3" id="base-url-group" style="display: none;">
+                        <label for="base_url" class="form-label">Base URL</label>
+                        <input type="url" class="form-control" id="base_url" name="base_url" 
+                               placeholder="https://api.example.com/v1">
+                        <div class="form-text">自定义OpenAI兼容API的基础URL</div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save me-2"></i>保存密钥
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-key me-2"></i>已配置的API密钥</h5>
+            </div>
+            <div class="card-body">
+                {% if api_keys %}
+                    {% for api_key in api_keys %}
+                    <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                        <div>
+                            <h6 class="mb-1">{{ supported_providers.get(api_key.provider, api_key.provider) }}</h6>
+                            <small class="text-muted">
+                                <i class="fas fa-check-circle text-success me-1"></i>已配置
+                                {% if api_key.base_url %}
+                                <br><small>Base URL: {{ api_key.base_url }}</small>
+                                {% endif %}
+                            </small>
+                        </div>
+                        <a href="{{ url_for('delete_api_key', key_id=api_key.id) }}" 
+                           class="btn btn-outline-danger btn-sm"
+                           onclick="return confirm('确定要删除这个API密钥吗？')">
+                            <i class="fas fa-trash"></i>
+                        </a>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="text-center text-muted">
+                    <i class="fas fa-key fa-3x mb-3"></i>
+                    <p>还未配置任何API密钥</p>
+                    <p>请在左侧添加您的AI模型API密钥</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6><i class="fas fa-info-circle me-2"></i>使用说明</h6>
+            </div>
+            <div class="card-body">
+                <h6>支持的AI服务商：</h6>
+                <ul class="list-unstyled">
+                    <li><i class="fas fa-check text-success me-2"></i><strong>OpenAI：</strong>支持GPT系列模型</li>
+                    <li><i class="fas fa-check text-success me-2"></i><strong>Google Gemini：</strong>Google的AI模型</li>
+                    <li><i class="fas fa-check text-success me-2"></i><strong>DeepSeek：</strong>深度求索AI模型</li>
+                    <li><i class="fas fa-check text-success me-2"></i><strong>Qwen：</strong>阿里云通义千问</li>
+                    <li><i class="fas fa-check text-success me-2"></i><strong>智谱AI：</strong>智谱GLM系列模型</li>
+                    <li><i class="fas fa-check text-success me-2"></i><strong>Custom OpenAI：</strong>支持OpenAI格式的自定义API</li>
+                </ul>
+                
+                <div class="alert alert-info mt-3">
+                    <small>
+                        <strong>安全说明：</strong>您的API密钥采用高级加密算法存储，平台不会保存明文密钥。
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const providerSelect = document.getElementById('provider');
+    const baseUrlGroup = document.getElementById('base-url-group');
+    const baseUrlInput = document.getElementById('base_url');
+
+    if (providerSelect && baseUrlGroup) {
+        providerSelect.addEventListener('change', function() {
+            if (this.value === 'custom_openai') {
+                baseUrlGroup.style.display = 'block';
+                baseUrlInput.required = true;
+            } else {
+                baseUrlGroup.style.display = 'none';
+                baseUrlInput.required = false;
+                baseUrlInput.value = '';
+            }
+        });
+    }
+});
+</script>
+{% endblock %} 

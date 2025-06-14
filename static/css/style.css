@@ -1,0 +1,112 @@
+/* 自定义样式 */
+body {
+    background-color: #f8f9fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+.card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    transition: box-shadow 0.15s ease-in-out;
+}
+
+.card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.issue-item {
+    background-color: #f8f9fa;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.issue-item:hover {
+    background-color: #e9ecef;
+}
+
+.form-control:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+.btn {
+    transition: all 0.15s ease-in-out;
+}
+
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .navbar-nav {
+        text-align: center;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    .btn-sm {
+        font-size: 0.75rem;
+    }
+}
+
+/* 文本区域样式 */
+.border.rounded {
+    border-color: #dee2e6 !important;
+}
+
+/* 加载动画 */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* 错误页面样式 */
+.error-page {
+    text-align: center;
+    padding: 4rem 0;
+}
+
+.error-code {
+    font-size: 6rem;
+    font-weight: bold;
+    color: #6c757d;
+}
+
+/* 历史记录特殊样式 */
+.history-item {
+    transition: transform 0.2s ease-in-out;
+}
+
+.history-item:hover {
+    transform: translateY(-2px);
+}
+
+/* 自定义滚动条 */
+.border.rounded::-webkit-scrollbar {
+    width: 8px;
+}
+
+.border.rounded::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.border.rounded::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.border.rounded::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+} 
