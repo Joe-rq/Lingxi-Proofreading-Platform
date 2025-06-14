@@ -8,13 +8,10 @@ import os
 import sys
 import subprocess
 
-def check_uv():
-    """检查 uv 是否已安装"""
-    try:
-        subprocess.run(['uv', '--version'], check=True, capture_output=True)
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
+# 添加 lingxi 模块到路径
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'lingxi'))
+from utils import check_uv, check_required_env_vars
+
 
 def main():
     # 检查 uv 是否安装
@@ -25,13 +22,13 @@ def main():
     
     # 检查环境变量
     required_env_vars = ['SECRET_KEY', 'ENCRYPTION_KEY']
-    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+    missing_vars = check_required_env_vars(required_env_vars)
     
     if missing_vars:
         print(f"错误: 缺少必要的环境变量: {', '.join(missing_vars)}")
         print("请设置以下环境变量:")
-        print("export SECRET_KEY='your-secret-key'")
-        print("export ENCRYPTION_KEY='your-encryption-key'")
+        for var in missing_vars:
+            print(f"export {var}='your-{var.lower().replace('_', '-')}'")
         sys.exit(1)
     
     # 同步依赖
@@ -47,21 +44,25 @@ def main():
     
     # 启动应用
     port = int(os.environ.get('PORT', 5000))
-    print(f"启动生产服务器，端口: {port}")
+    workers = int(os.environ.get('WORKERS', 4))
+    timeout = int(os.environ.get('TIMEOUT', 120))
+    
+    print(f"启动生产服务器，端口: {port}, 工作进程: {workers}")
     
     try:
         subprocess.run([
             'uv', 'run', 'gunicorn', 
             '--bind', f'0.0.0.0:{port}',
-            '--workers', '4',
-            '--timeout', '120',
-            'app:app'
+            '--workers', str(workers),
+            '--timeout', str(timeout),
+            'app:app'  # 直接使用根目录的app.py
         ], check=True)
     except subprocess.CalledProcessError:
         print("错误: 服务启动失败")
         sys.exit(1)
     except KeyboardInterrupt:
         print("\n服务已停止")
+
 
 if __name__ == '__main__':
     main() 

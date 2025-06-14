@@ -16,7 +16,7 @@ class OpenAIService(BaseAIService):
             response = self.client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "你是一个专业的文本校对助手。请仔细检查文本中的语法、拼写、标点符号等问题，并按照指定格式返回结果。"},
+                    {"role": "system", "content": self._get_system_message()},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.1,
@@ -27,13 +27,4 @@ class OpenAIService(BaseAIService):
             return self._parse_response(result_text)
             
         except Exception as e:
-            return ProofreadingResult(
-                corrected_text=text,
-                issues=[{
-                    "type": "API错误",
-                    "original": "OpenAI API调用失败",
-                    "corrected": "",
-                    "position": "",
-                    "explanation": f"错误信息: {str(e)}"
-                }]
-            ) 
+            return self._create_error_result(text, "API错误", str(e)) 

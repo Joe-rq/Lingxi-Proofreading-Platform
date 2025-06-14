@@ -26,12 +26,6 @@ fi
 
 echo "✓ Python版本检查通过: $python_version"
 
-# 初始化项目（如果需要）
-if [ ! -f "pyproject.toml" ]; then
-    echo "📦 初始化 uv 项目..."
-    uv init --no-readme --no-pin-python
-fi
-
 # 同步依赖
 echo "📚 同步依赖..."
 uv sync
@@ -56,21 +50,22 @@ fi
 
 # 初始化数据库
 echo "🗄️  初始化数据库..."
-uv run python -c "
-from app import app, db
-with app.app_context():
-    db.create_all()
-    print('数据库初始化完成')
-"
+uv run python init_database.py
+
+# 检查端口5000是否被占用
+if lsof -Pi :5000 -sTCP:LISTEN -t >/dev/null; then
+    echo "⚠️  端口5000被占用，尝试使用端口5001..."
+    PORT=5001
+else
+    PORT=5000
+fi
 
 # 启动应用
 echo "🌟 启动应用..."
-echo "📱 访问地址: http://localhost:5000"
+echo "📱 访问地址: http://localhost:$PORT"
 echo "🛑 按 Ctrl+C 停止服务"
 echo ""
 
-rm -rf .venv
-python -m uv venv
-python -m uv pip install -e .
-
+# 设置环境变量并启动服务器
+export FLASK_RUN_PORT=$PORT
 uv run python app.py 

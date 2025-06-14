@@ -1,3 +1,7 @@
+# 注意：此文件是为了向后兼容保留的
+# 推荐使用 pyproject.toml 进行依赖管理
+# 生产环境请使用: uv sync
+
 Flask==2.3.3
 Flask-SQLAlchemy==3.0.5
 Flask-Migrate==4.0.5

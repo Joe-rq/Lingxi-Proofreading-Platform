@@ -56,11 +56,12 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["ai_services"]
+packages = ["lingxi"]
 include = [
-    "*.py",
-    "templates/**/*",
-    "static/**/*",
+    "app.py",
+    "lingxi/**/*.py",
+    "lingxi/templates/**/*",
+    "lingxi/static/**/*",
 ]
 
 [tool.uv]

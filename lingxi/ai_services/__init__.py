@@ -1,4 +1,5 @@
-from .base import BaseAIService
+from .base import BaseAIService, ProofreadingResult
+from .http_ai_service import HTTPAIService
 from .openai_service import OpenAIService
 from .gemini_service import GeminiService
 from .deepseek_service import DeepSeekService

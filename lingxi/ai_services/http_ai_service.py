@@ -1,16 +1,17 @@
 from .base import BaseAIService, ProofreadingResult
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 
-class QwenService(BaseAIService):
-    """阿里云通义千问服务实现"""
+class HTTPAIService(BaseAIService):
+    """基于HTTP请求的AI服务基类"""
     
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, base_url: str, model_name: str):
         super().__init__(api_key)
-        self.base_url = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation"
+        self.base_url = base_url
+        self.model_name = model_name
     
     def proofread(self, text: str) -> ProofreadingResult:
-        """使用Qwen进行文本校对"""
+        """使用HTTP API进行文本校对"""
         try:
             prompt = self._get_proofreading_prompt(text)
             
@@ -26,28 +27,24 @@ class QwenService(BaseAIService):
             return self._create_error_result(text, "API错误", str(e))
     
     def _get_headers(self) -> Dict[str, str]:
-        """获取Qwen专用请求头"""
+        """获取请求头"""
         return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
     
     def _get_request_data(self, prompt: str) -> Dict[str, Any]:
-        """获取Qwen专用请求数据"""
+        """获取请求数据"""
         return {
-            "model": "qwen-turbo",
-            "input": {
-                "messages": [
-                    {"role": "system", "content": self._get_system_message()},
-                    {"role": "user", "content": prompt}
-                ]
-            },
-            "parameters": {
-                "temperature": 0.1,
-                "max_tokens": 2000
-            }
+            "model": self.model_name,
+            "messages": [
+                {"role": "system", "content": self._get_system_message()},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.1,
+            "max_tokens": 2000
         }
     
     def _extract_content_from_response(self, response: Dict[str, Any]) -> str:
-        """从Qwen响应中提取内容"""
-        return response['output']['choices'][0]['message']['content'] 
+        """从响应中提取内容"""
+        return response['choices'][0]['message']['content'] 

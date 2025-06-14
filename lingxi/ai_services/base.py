@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
+import requests
+import json
 
 class ProofreadingResult:
     """校对结果数据类"""
@@ -10,8 +12,9 @@ class ProofreadingResult:
 class BaseAIService(ABC):
     """AI服务基类"""
     
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, base_url: Optional[str] = None):
         self.api_key = api_key
+        self.base_url = base_url
     
     @abstractmethod
     def proofread(self, text: str) -> ProofreadingResult:
@@ -49,9 +52,31 @@ class BaseAIService(ABC):
 {text}
 """
     
+    def _get_system_message(self) -> str:
+        """获取系统消息"""
+        return "你是一个专业的文本校对助手。请仔细检查文本中的语法、拼写、标点符号等问题，并按照指定格式返回结果。"
+    
+    def _create_error_result(self, text: str, error_type: str, error_msg: str) -> ProofreadingResult:
+        """创建错误结果"""
+        return ProofreadingResult(
+            corrected_text=text,
+            issues=[{
+                "type": error_type,
+                "original": f"{error_type}调用失败",
+                "corrected": "",
+                "position": "",
+                "explanation": f"错误信息: {error_msg}"
+            }]
+        )
+    
+    def _make_http_request(self, url: str, headers: Dict[str, str], data: Dict[str, Any]) -> Dict[str, Any]:
+        """发起HTTP请求"""
+        response = requests.post(url, headers=headers, json=data, timeout=30)
+        response.raise_for_status()
+        return response.json()
+    
     def _parse_response(self, response_text: str) -> ProofreadingResult:
         """解析AI返回的结果"""
-        import json
         import re
         
         try:

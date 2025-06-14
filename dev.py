@@ -9,24 +9,9 @@ import sys
 import subprocess
 import argparse
 
-def check_uv():
-    """检查 uv 是否已安装"""
-    try:
-        subprocess.run(['uv', '--version'], check=True, capture_output=True)
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
-
-def run_command(cmd, description):
-    """运行命令并显示描述"""
-    print(f"\n🔧 {description}...")
-    try:
-        subprocess.run(cmd, check=True)
-        print(f"✓ {description}完成")
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"✗ {description}失败: {e}")
-        return False
+# 添加 lingxi 模块到路径
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'lingxi'))
+from utils import check_uv, run_command, generate_secret_key
 
 def setup():
     """初始化开发环境"""
@@ -48,15 +33,8 @@ def setup():
     # 检查环境变量文件
     if not os.path.exists('.env'):
         print("\n🔑 创建环境变量文件...")
-        secret_key = subprocess.check_output([
-            'uv', 'run', 'python', '-c', 
-            'import secrets; print(secrets.token_urlsafe(32))'
-        ], text=True).strip()
-        
-        encryption_key = subprocess.check_output([
-            'uv', 'run', 'python', '-c', 
-            'import secrets; print(secrets.token_urlsafe(32))'
-        ], text=True).strip()
+        secret_key = generate_secret_key()
+        encryption_key = generate_secret_key()
         
         with open('.env', 'w') as f:
             f.write(f"SECRET_KEY={secret_key}\n")
@@ -65,6 +43,11 @@ def setup():
         
         print("✓ .env 文件已创建")
     
+    # 初始化数据库
+    print("\n🗄️  初始化数据库...")
+    if not run_command(['uv', 'run', 'python', 'init_database.py'], "数据库初始化"):
+        print("⚠️  数据库初始化失败，但可能不影响应用启动")
+    
     print("\n✨ 开发环境初始化完成!")
     print("💡 运行 'python dev.py serve' 启动开发服务器")
     return True
@@ -72,10 +55,27 @@ def setup():
 def serve():
     """启动开发服务器"""
     print("🌟 启动开发服务器...")
+    
+    # 检查端口5000是否被占用
+    try:
+        import socket
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            result = s.connect_ex(('localhost', 5000))
+            if result == 0:
+                print("⚠️  端口5000被占用，尝试使用端口5001...")
+                os.environ['FLASK_RUN_PORT'] = '5001'
+            else:
+                os.environ['FLASK_RUN_PORT'] = '5000'
+    except Exception:
+        os.environ['FLASK_RUN_PORT'] = '5000'
+    
     try:
         subprocess.run(['uv', 'run', 'python', 'app.py'], check=True)
     except KeyboardInterrupt:
         print("\n🛑 开发服务器已停止")
+    except Exception as e:
+        print(f"❌ 启动失败: {e}")
+        print("💡 提示: 尝试运行 'python dev.py setup' 来初始化环境")
 
 def test():
     """运行测试"""
