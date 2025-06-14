@@ -12,9 +12,10 @@ class ProofreadingResult:
 class BaseAIService(ABC):
     """AI服务基类"""
     
-    def __init__(self, api_key: str, base_url: Optional[str] = None):
+    def __init__(self, api_key: str, base_url: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key
         self.base_url = base_url
+        self.model = model
     
     @abstractmethod
     def proofread(self, text: str) -> ProofreadingResult:
@@ -28,6 +29,14 @@ class BaseAIService(ABC):
             ProofreadingResult: 包含校对结果和问题列表
         """
         pass
+    
+    def get_model(self) -> str:
+        """获取当前使用的模型"""
+        return self.model or self.get_default_model()
+    
+    def get_default_model(self) -> str:
+        """获取默认模型（子类应重写此方法）"""
+        return "default-model"
     
     def _get_proofreading_prompt(self, text: str) -> str:
         """获取校对提示词"""

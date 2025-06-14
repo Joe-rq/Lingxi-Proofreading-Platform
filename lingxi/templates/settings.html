@@ -41,6 +41,14 @@
                         <div class="form-text">自定义OpenAI兼容API的基础URL</div>
                     </div>
                     
+                    <div class="mb-3" id="models-group" style="display: none;">
+                        <label class="form-label">启用的模型</label>
+                        <div id="models-list" class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+                            <!-- 模型列表将通过JavaScript动态加载 -->
+                        </div>
+                        <div class="form-text">选择要启用的模型，不选择则启用所有模型</div>
+                    </div>
+                    
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save me-2"></i>保存密钥
                     </button>
@@ -57,21 +65,46 @@
             <div class="card-body">
                 {% if api_keys %}
                     {% for api_key in api_keys %}
-                    <div class="d-flex justify-content-between align-items-center border-bottom py-2">
-                        <div>
-                            <h6 class="mb-1">{{ supported_providers.get(api_key.provider, api_key.provider) }}</h6>
-                            <small class="text-muted">
-                                <i class="fas fa-check-circle text-success me-1"></i>已配置
-                                {% if api_key.base_url %}
-                                <br><small>Base URL: {{ api_key.base_url }}</small>
-                                {% endif %}
-                            </small>
+                    <div class="border-bottom py-3">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1">{{ supported_providers.get(api_key.provider, api_key.provider) }}</h6>
+                                <small class="text-muted">
+                                    <i class="fas fa-check-circle text-success me-1"></i>已配置
+                                    {% if api_key.base_url %}
+                                    <br><small>Base URL: {{ api_key.base_url }}</small>
+                                    {% endif %}
+                                </small>
+                                
+                                <!-- 显示启用的模型 -->
+                                {% set enabled_models = api_key.get_enabled_models() %}
+                                {% set available_models = api_key.get_available_models() %}
+                                <div class="mt-2">
+                                    <small class="text-muted d-block">
+                                        <strong>可用模型:</strong>
+                                        {% if enabled_models %}
+                                            {% for model in available_models %}
+                                            <span class="badge bg-primary me-1">{{ model.name }}</span>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-success">全部模型</span>
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="btn-group-vertical btn-group-sm">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" 
+                                        onclick="showModelConfig({{ api_key.id }}, '{{ api_key.provider }}')"
+                                        data-bs-toggle="modal" data-bs-target="#modelConfigModal">
+                                    <i class="fas fa-cogs"></i> 模型配置
+                                </button>
+                                <a href="{{ url_for('delete_api_key', key_id=api_key.id) }}" 
+                                   class="btn btn-outline-danger btn-sm"
+                                   onclick="return confirm('确定要删除这个API密钥吗？')">
+                                    <i class="fas fa-trash"></i> 删除
+                                </a>
+                            </div>
                         </div>
-                        <a href="{{ url_for('delete_api_key', key_id=api_key.id) }}" 
-                           class="btn btn-outline-danger btn-sm"
-                           onclick="return confirm('确定要删除这个API密钥吗？')">
-                            <i class="fas fa-trash"></i>
-                        </a>
                     </div>
                     {% endfor %}
                 {% else %}
@@ -108,18 +141,53 @@
         </div>
     </div>
 </div>
+
+<!-- 模型配置模态框 -->
+<div class="modal fade" id="modelConfigModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">模型配置</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="modelConfigForm" method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">选择要启用的模型：</label>
+                        <div id="modalModelsList" style="max-height: 300px; overflow-y: auto;">
+                            <!-- 模型列表将通过JavaScript动态加载 -->
+                        </div>
+                        <div class="form-text">不选择任何模型表示启用所有模型</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveModelConfig()">保存配置</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+// AI模型配置数据
+const aiModels = {{ ai_models | tojson }};
+let currentApiKeyId = null;
+
 document.addEventListener('DOMContentLoaded', function() {
     const providerSelect = document.getElementById('provider');
     const baseUrlGroup = document.getElementById('base-url-group');
     const baseUrlInput = document.getElementById('base_url');
+    const modelsGroup = document.getElementById('models-group');
 
-    if (providerSelect && baseUrlGroup) {
+    if (providerSelect) {
         providerSelect.addEventListener('change', function() {
-            if (this.value === 'custom_openai') {
+            const selectedProvider = this.value;
+            
+            // 处理Base URL显示
+            if (selectedProvider === 'custom_openai') {
                 baseUrlGroup.style.display = 'block';
                 baseUrlInput.required = true;
             } else {
@@ -127,8 +195,58 @@ document.addEventListener('DOMContentLoaded', function() {
                 baseUrlInput.required = false;
                 baseUrlInput.value = '';
             }
+            
+            // 处理模型选择显示
+            if (selectedProvider && aiModels[selectedProvider]) {
+                modelsGroup.style.display = 'block';
+                loadProviderModels(selectedProvider, 'models-list');
+            } else {
+                modelsGroup.style.display = 'none';
+            }
         });
     }
 });
+
+function loadProviderModels(provider, containerId) {
+    const container = document.getElementById(containerId);
+    if (!container || !aiModels[provider]) return;
+    
+    const models = aiModels[provider].models;
+    let html = '';
+    
+    models.forEach(model => {
+        html += `
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="enabled_models" 
+                       value="${model.id}" id="${containerId}_${model.id}">
+                <label class="form-check-label" for="${containerId}_${model.id}">
+                    <strong>${model.name}</strong>
+                    <br><small class="text-muted">${model.description}</small>
+                </label>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+function showModelConfig(apiKeyId, provider) {
+    currentApiKeyId = apiKeyId;
+    
+    // 加载该提供商的模型
+    loadProviderModels(provider, 'modalModelsList');
+    
+    // 更新表单action
+    const form = document.getElementById('modelConfigForm');
+    form.action = `/update_api_key_models/${apiKeyId}`;
+    
+    // 可以在这里加载已选择的模型并预选中
+    // TODO: 从服务器获取当前API密钥的启用模型列表
+}
+
+function saveModelConfig() {
+    const form = document.getElementById('modelConfigForm');
+    form.submit();
+}
 </script>
 {% endblock %} 

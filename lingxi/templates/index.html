@@ -31,9 +31,16 @@
                     <select class="form-select" id="model-select" required>
                         <option value="">请选择模型...</option>
                         {% for model in available_models %}
-                        <option value="{{ model.provider }}">{{ model.name }}</option>
+                        <option value="{{ model.provider }}|{{ model.model_id }}" 
+                                data-provider="{{ model.provider }}" 
+                                data-model="{{ model.model_id }}">
+                            {{ model.full_name }}
+                        </option>
                         {% endfor %}
                     </select>
+                    <div class="form-text">
+                        <small class="text-muted">当前可用 {{ available_models|length }} 个模型</small>
+                    </div>
                 </div>
                 <div class="mb-3">
                     <label for="input-text" class="form-label">待校对文本</label>
@@ -41,10 +48,14 @@
                               placeholder="请输入需要校对的文本..."></textarea>
                     <div class="form-text">
                         <span id="char-count">0</span> 字符
+                        <span class="text-muted">（建议不超过 10,000 字符）</span>
                     </div>
                 </div>
                 <button type="button" class="btn btn-primary" id="proofread-btn">
                     <i class="fas fa-magic me-2"></i>开始校对
+                </button>
+                <button type="button" class="btn btn-outline-secondary ms-2" id="clear-btn">
+                    <i class="fas fa-eraser me-2"></i>清空
                 </button>
             </div>
         </div>
@@ -65,26 +76,37 @@
                 
                 <div id="results" class="d-none">
                     <div class="mb-4">
-                        <h6><i class="fas fa-list me-2"></i>发现的问题</h6>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6><i class="fas fa-list me-2"></i>发现的问题</h6>
+                            <span id="issues-count" class="badge bg-info"></span>
+                        </div>
                         <div id="issues-list" class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
                             <!-- 问题列表将在这里显示 -->
                         </div>
                     </div>
                     
                     <div>
-                        <h6><i class="fas fa-file-alt me-2"></i>优化后全文</h6>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6><i class="fas fa-file-alt me-2"></i>优化后全文</h6>
+                            <div>
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="copy-btn">
+                                    <i class="fas fa-copy me-1"></i>复制文本
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="download-btn">
+                                    <i class="fas fa-download me-1"></i>下载
+                                </button>
+                            </div>
+                        </div>
                         <div class="border rounded p-3" style="max-height: 300px; overflow-y: auto;">
                             <pre id="corrected-text" class="mb-0" style="white-space: pre-wrap; font-family: inherit;"></pre>
                         </div>
-                        <button type="button" class="btn btn-outline-primary btn-sm mt-2" id="copy-btn">
-                            <i class="fas fa-copy me-1"></i>复制文本
-                        </button>
                     </div>
                 </div>
                 
                 <div id="no-results" class="text-center text-muted">
                     <i class="fas fa-file-text fa-3x mb-3"></i>
                     <p>校对结果将在这里显示</p>
+                    <small>选择模型并输入文本开始校对</small>
                 </div>
             </div>
         </div>
@@ -100,17 +122,46 @@ document.addEventListener('DOMContentLoaded', function() {
     const charCount = document.getElementById('char-count');
     const modelSelect = document.getElementById('model-select');
     const proofreadBtn = document.getElementById('proofread-btn');
+    const clearBtn = document.getElementById('clear-btn');
     const loading = document.getElementById('loading');
     const results = document.getElementById('results');
     const noResults = document.getElementById('no-results');
     const issuesList = document.getElementById('issues-list');
+    const issuesCount = document.getElementById('issues-count');
     const correctedText = document.getElementById('corrected-text');
     const copyBtn = document.getElementById('copy-btn');
+    const downloadBtn = document.getElementById('download-btn');
 
     // 字符计数
     if (inputText && charCount) {
         inputText.addEventListener('input', function() {
-            charCount.textContent = this.value.length;
+            const count = this.value.length;
+            charCount.textContent = count;
+            
+            // 字符数过多时提醒
+            if (count > 10000) {
+                charCount.style.color = 'red';
+            } else if (count > 8000) {
+                charCount.style.color = 'orange';
+            } else {
+                charCount.style.color = '';
+            }
+        });
+    }
+
+    // 清空按钮事件
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            if (confirm('确定要清空所有内容吗？')) {
+                inputText.value = '';
+                charCount.textContent = '0';
+                charCount.style.color = '';
+                modelSelect.value = '';
+                
+                // 隐藏结果
+                results.classList.add('d-none');
+                noResults.classList.remove('d-none');
+            }
         });
     }
 
@@ -118,23 +169,33 @@ document.addEventListener('DOMContentLoaded', function() {
     if (proofreadBtn) {
         proofreadBtn.addEventListener('click', function() {
             const text = inputText.value.trim();
-            const provider = modelSelect.value;
+            const selectedOption = modelSelect.value;
 
             if (!text) {
                 alert('请输入要校对的文本');
                 return;
             }
 
-            if (!provider) {
+            if (!selectedOption) {
                 alert('请选择AI模型');
                 return;
             }
+
+            if (text.length > 10000) {
+                if (!confirm('文本长度超过建议限制（10000字符），可能影响校对效果或增加费用。确定继续吗？')) {
+                    return;
+                }
+            }
+
+            // 解析选择的模型
+            const [provider, model] = selectedOption.split('|');
 
             // 显示加载状态
             loading.classList.remove('d-none');
             results.classList.add('d-none');
             noResults.classList.add('d-none');
             proofreadBtn.disabled = true;
+            clearBtn.disabled = true;
 
             // 调用API
             fetch('/api/proofread', {
@@ -144,7 +205,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 body: JSON.stringify({
                     text: text,
-                    provider: provider
+                    provider: provider,
+                    model: model
                 })
             })
             .then(response => response.json())
@@ -165,11 +227,12 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('校对失败，请重试');
+                alert('校对失败，请检查网络连接后重试');
             })
             .finally(() => {
                 loading.classList.add('d-none');
                 proofreadBtn.disabled = false;
+                clearBtn.disabled = false;
             });
         });
     }
@@ -181,8 +244,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(() => {
                     const originalText = this.innerHTML;
                     this.innerHTML = '<i class="fas fa-check me-1"></i>已复制';
+                    this.classList.remove('btn-outline-primary');
+                    this.classList.add('btn-success');
                     setTimeout(() => {
                         this.innerHTML = originalText;
+                        this.classList.remove('btn-success');
+                        this.classList.add('btn-outline-primary');
                     }, 2000);
                 })
                 .catch(() => {
@@ -191,30 +258,80 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // 下载按钮事件
+    if (downloadBtn) {
+        downloadBtn.addEventListener('click', function() {
+            const text = correctedText.textContent;
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '校对结果_' + new Date().toISOString().slice(0, 19).replace(/:/g, '-') + '.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+    }
+
     function displayIssues(issues) {
         if (!issues || issues.length === 0) {
-            issuesList.innerHTML = '<p class="text-muted mb-0">未发现明显问题</p>';
+            issuesList.innerHTML = '<p class="text-muted mb-0"><i class="fas fa-check-circle text-success me-2"></i>未发现明显问题，文本质量良好！</p>';
+            issuesCount.textContent = '0个问题';
+            issuesCount.className = 'badge bg-success';
             return;
         }
 
+        issuesCount.textContent = `${issues.length}个问题`;
+        issuesCount.className = issues.length > 5 ? 'badge bg-danger' : (issues.length > 2 ? 'badge bg-warning' : 'badge bg-info');
+
         let html = '';
         issues.forEach((issue, index) => {
+            const typeColor = getIssueTypeColor(issue.type);
             html += `
-                <div class="issue-item mb-3 p-2 border rounded">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <span class="badge bg-warning text-dark">${issue.type}</span>
-                        <small class="text-muted">${issue.position}</small>
+                <div class="issue-item mb-3 p-3 border rounded shadow-sm">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <span class="badge ${typeColor}">${issue.type}</span>
+                        <small class="text-muted">#${index + 1} ${issue.position}</small>
                     </div>
-                    <div class="mt-2">
-                        <strong>原文：</strong><span class="text-danger">${issue.original}</span><br>
-                        <strong>修正：</strong><span class="text-success">${issue.corrected}</span><br>
-                        <small class="text-muted">${issue.explanation}</small>
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="mb-2">
+                                <strong class="text-danger">原文：</strong>
+                                <span class="bg-danger bg-opacity-10 p-1 rounded">${escapeHtml(issue.original)}</span>
+                            </div>
+                            <div class="mb-2">
+                                <strong class="text-success">修正：</strong>
+                                <span class="bg-success bg-opacity-10 p-1 rounded">${escapeHtml(issue.corrected)}</span>
+                            </div>
+                            <div>
+                                <small class="text-muted"><i class="fas fa-info-circle me-1"></i>${escapeHtml(issue.explanation)}</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
         });
         
         issuesList.innerHTML = html;
+    }
+
+    function getIssueTypeColor(type) {
+        const colorMap = {
+            '语法错误': 'bg-danger',
+            '错别字': 'bg-warning text-dark',
+            '标点符号': 'bg-info',
+            '用词不当': 'bg-secondary',
+            '格式问题': 'bg-primary',
+            '默认': 'bg-dark'
+        };
+        return colorMap[type] || colorMap['默认'];
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 });
 </script>

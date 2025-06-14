@@ -35,13 +35,7 @@ def index():
         return redirect(url_for('login'))
     
     # 获取用户可用的AI模型
-    available_models = []
-    for api_key in current_user.api_keys:
-        provider_name = Config.SUPPORTED_PROVIDERS.get(api_key.provider, api_key.provider)
-        available_models.append({
-            'provider': api_key.provider,
-            'name': provider_name
-        })
+    available_models = current_user.get_available_models()
     
     return render_template('index.html', available_models=available_models)
 
@@ -106,6 +100,7 @@ def settings():
         provider = request.form['provider']
         api_key = request.form['api_key']
         base_url = request.form.get('base_url', '')
+        enabled_models = request.form.getlist('enabled_models')
         
         # 检查是否已存在相同提供商的密钥
         existing_key = APIKey.query.filter_by(
@@ -114,7 +109,7 @@ def settings():
         ).first()
         
         if existing_key:
-            flash(f'{Config.SUPPORTED_PROVIDERS.get(provider, provider)} 的API密钥已存在，请先删除再添加')
+            flash(f'{Config.get_provider_name(provider)} 的API密钥已存在，请先删除再添加')
             return redirect(url_for('settings'))
         
         # 创建新的API密钥记录
@@ -125,11 +120,12 @@ def settings():
                 base_url=base_url if provider == 'custom_openai' else None
             )
             new_api_key.set_api_key(api_key, app.config['ENCRYPTION_KEY'])
+            new_api_key.set_enabled_models(enabled_models)
             
             db.session.add(new_api_key)
             db.session.commit()
             
-            flash(f'{Config.SUPPORTED_PROVIDERS.get(provider, provider)} API密钥添加成功')
+            flash(f'{Config.get_provider_name(provider)} API密钥添加成功')
         except Exception as e:
             db.session.rollback()
             flash(f'添加API密钥失败: {str(e)}')
@@ -140,7 +136,54 @@ def settings():
     
     return render_template('settings.html', 
                          api_keys=user_api_keys,
-                         supported_providers=Config.SUPPORTED_PROVIDERS)
+                         supported_providers=Config.SUPPORTED_PROVIDERS,
+                         ai_models=Config.AI_MODELS)
+
+@app.route('/api/models/<provider>')
+@login_required
+def api_get_provider_models(provider):
+    """获取指定提供商的模型列表"""
+    try:
+        models = Config.get_provider_models(provider)
+        return jsonify(models)
+    except Exception as e:
+        logger.error(f"Error getting models for provider {provider}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/user/models')
+@login_required
+def api_get_user_models():
+    """获取用户可用的所有模型"""
+    try:
+        available_models = current_user.get_available_models()
+        return jsonify({'models': available_models})
+    except Exception as e:
+        logger.error(f"Error getting user models: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/update_api_key_models/<int:key_id>', methods=['POST'])
+@login_required
+def update_api_key_models(key_id):
+    """更新API密钥的启用模型列表"""
+    try:
+        api_key = APIKey.query.filter_by(id=key_id, user_id=current_user.id).first()
+        
+        if not api_key:
+            flash('API密钥不存在')
+            return redirect(url_for('settings'))
+        
+        enabled_models = request.form.getlist('enabled_models')
+        api_key.set_enabled_models(enabled_models)
+        
+        db.session.commit()
+        flash(f'{Config.get_provider_name(api_key.provider)} 模型配置更新成功')
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f'更新模型配置失败: {str(e)}')
+        logger.error(f"API key model update error: {e}")
+    
+    return redirect(url_for('settings'))
 
 @app.route('/delete_api_key/<int:key_id>')
 @login_required
@@ -170,11 +213,15 @@ def api_proofread():
         data = request.get_json()
         text = data.get('text', '').strip()
         provider = data.get('provider', '')
+        model = data.get('model', '')
         
         if not text:
             return jsonify({'error': '请输入要校对的文本'}), 400
         
         if not provider:
+            return jsonify({'error': '请选择AI提供商'}), 400
+        
+        if not model:
             return jsonify({'error': '请选择AI模型'}), 400
         
         # 查找用户的API密钥
@@ -186,11 +233,18 @@ def api_proofread():
         if not api_key_record:
             return jsonify({'error': f'未找到 {provider} 的API密钥'}), 400
         
+        # 检查模型是否可用
+        available_models = api_key_record.get_available_models()
+        model_ids = [m['id'] for m in available_models]
+        
+        if model not in model_ids:
+            return jsonify({'error': f'模型 {model} 不可用'}), 400
+        
         # 解密API密钥
         api_key = api_key_record.get_api_key(app.config['ENCRYPTION_KEY'])
         
         # 获取AI服务并执行校对
-        ai_service = get_ai_service(provider, api_key, api_key_record.base_url)
+        ai_service = get_ai_service(provider, api_key, api_key_record.base_url, model)
         result = ai_service.proofread(text)
         
         # 保存校对历史
@@ -200,7 +254,8 @@ def api_proofread():
                 original_text=text,
                 corrected_text=result.corrected_text,
                 issues_found=json.dumps(result.issues, ensure_ascii=False),
-                model_used=provider
+                provider_used=provider,
+                model_used=model
             )
             db.session.add(history)
             db.session.commit()
@@ -221,7 +276,7 @@ def api_proofread():
 def history():
     """校对历史页面"""
     page = request.args.get('page', 1, type=int)
-    per_page = 10
+    per_page = Config.ITEMS_PER_PAGE
     
     histories = ProofreadingHistory.query.filter_by(user_id=current_user.id)\
                                         .order_by(ProofreadingHistory.created_at.desc())\

@@ -5,10 +5,14 @@ from typing import Dict, Any, Optional
 class HTTPAIService(BaseAIService):
     """基于HTTP请求的AI服务基类"""
     
-    def __init__(self, api_key: str, base_url: str, model_name: str):
-        super().__init__(api_key)
+    def __init__(self, api_key: str, base_url: str, default_model: str, model: Optional[str] = None):
+        super().__init__(api_key, base_url, model)
         self.base_url = base_url
-        self.model_name = model_name
+        self.default_model = default_model
+    
+    def get_default_model(self) -> str:
+        """获取默认模型"""
+        return self.default_model
     
     def proofread(self, text: str) -> ProofreadingResult:
         """使用HTTP API进行文本校对"""
@@ -36,7 +40,7 @@ class HTTPAIService(BaseAIService):
     def _get_request_data(self, prompt: str) -> Dict[str, Any]:
         """获取请求数据"""
         return {
-            "model": self.model_name,
+            "model": self.get_model(),
             "messages": [
                 {"role": "system", "content": self._get_system_message()},
                 {"role": "user", "content": prompt}

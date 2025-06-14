@@ -6,6 +6,7 @@ from .deepseek_service import DeepSeekService
 from .qwen_service import QwenService
 from .zhipu_service import ZhipuService
 from .custom_openai_service import CustomOpenAIService
+from typing import Optional
 
 # AI服务工厂
 AI_SERVICES = {
@@ -17,7 +18,7 @@ AI_SERVICES = {
     'custom_openai': CustomOpenAIService
 }
 
-def get_ai_service(provider: str, api_key: str, base_url: str = None) -> BaseAIService:
+def get_ai_service(provider: str, api_key: str, base_url: str = None, model: Optional[str] = None) -> BaseAIService:
     """获取AI服务实例"""
     if provider not in AI_SERVICES:
         raise ValueError(f"Unsupported AI provider: {provider}")
@@ -25,6 +26,6 @@ def get_ai_service(provider: str, api_key: str, base_url: str = None) -> BaseAIS
     service_class = AI_SERVICES[provider]
     
     if provider == 'custom_openai':
-        return service_class(api_key, base_url)
+        return service_class(api_key, base_url, model)
     else:
-        return service_class(api_key) 
+        return service_class(api_key, model) 

@@ -1,12 +1,18 @@
 from .base import BaseAIService, ProofreadingResult
 from openai import OpenAI
+from typing import Optional
+
 
 class OpenAIService(BaseAIService):
     """OpenAI服务实现"""
     
-    def __init__(self, api_key: str):
-        super().__init__(api_key)
+    def __init__(self, api_key: str, model: Optional[str] = None):
+        super().__init__(api_key, model=model)
         self.client = OpenAI(api_key=api_key)
+    
+    def get_default_model(self) -> str:
+        """获取默认模型"""
+        return "gpt-3.5-turbo"
     
     def proofread(self, text: str) -> ProofreadingResult:
         """使用OpenAI进行文本校对"""
@@ -14,7 +20,7 @@ class OpenAIService(BaseAIService):
             prompt = self._get_proofreading_prompt(text)
             
             response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
+                model=self.get_model(),
                 messages=[
                     {"role": "system", "content": self._get_system_message()},
                     {"role": "user", "content": prompt}
