@@ -217,6 +217,30 @@ def api_update_model():
         logger.error(f"Error updating model: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/models/remove', methods=['POST'])
+@login_required
+def api_remove_model():
+    """删除模型"""
+    try:
+        data = request.get_json()
+        provider = data.get('provider')
+        model_id = data.get('model_id')
+        
+        if not all([provider, model_id]):
+            return jsonify({'error': '缺少必需参数'}), 400
+        
+        # 删除模型
+        success = Config.remove_model(provider, model_id)
+        
+        if success:
+            return jsonify({'message': '模型删除成功'})
+        else:
+            return jsonify({'error': '模型不存在或删除失败'}), 400
+            
+    except Exception as e:
+        logger.error(f"Error removing model: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/update_api_key_models/<int:key_id>', methods=['POST'])
 @login_required
 def update_api_key_models(key_id):

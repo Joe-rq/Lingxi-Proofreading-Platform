@@ -361,6 +361,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const description = btn.dataset.modelDescription;
             editModel(provider, modelId, modelName, description);
         }
+        
+        // 为删除模型按钮添加事件监听器
+        if (e.target.closest('.remove-model-btn')) {
+            const btn = e.target.closest('.remove-model-btn');
+            const provider = btn.dataset.provider;
+            const modelId = btn.dataset.modelId;
+            const modelName = btn.dataset.modelName;
+            removeModel(provider, modelId, modelName);
+        }
     });
 });
 
@@ -469,14 +478,24 @@ function displayModels(filterProvider = '') {
                         <small class="text-muted">ID: ${model.id}</small>
                         <p class="mb-1 small">${model.description}</p>
                     </div>
-                    <button class="btn btn-outline-secondary btn-sm edit-model-btn" 
-                            data-provider="${provider}"
-                            data-model-id="${model.id}"
-                            data-model-name="${model.name}"
-                            data-model-description="${model.description}"
-                            data-bs-toggle="modal" data-bs-target="#editModelModal">
-                        <i class="fas fa-edit"></i>
-                    </button>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary edit-model-btn" 
+                                data-provider="${provider}"
+                                data-model-id="${model.id}"
+                                data-model-name="${model.name}"
+                                data-model-description="${model.description}"
+                                data-bs-toggle="modal" data-bs-target="#editModelModal"
+                                title="编辑模型">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-outline-danger remove-model-btn" 
+                                data-provider="${provider}"
+                                data-model-id="${model.id}"
+                                data-model-name="${model.name}"
+                                title="删除模型">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </div>
             `;
         });
@@ -541,6 +560,37 @@ function updateModel() {
     .catch(error => {
         console.error('Error:', error);
         alert('更新失败，请重试');
+    });
+}
+
+function removeModel(provider, modelId, modelName) {
+    if (!confirm(`确定要删除模型 "${modelName}" 吗？\n\n注意：删除后将无法恢复，且可能影响正在使用此模型的配置。`)) {
+        return;
+    }
+
+    fetch('/api/models/remove', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            provider: provider,
+            model_id: modelId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            alert('删除失败: ' + data.error);
+        } else {
+            alert('模型删除成功！');
+            // 刷新显示
+            location.reload();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('删除失败，请重试');
     });
 }
 </script>

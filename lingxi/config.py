@@ -165,6 +165,19 @@ class Config:
         return False
     
     @classmethod
+    def remove_model(cls, provider_key: str, model_id: str) -> bool:
+        """删除模型"""
+        if provider_key not in cls.AI_MODELS:
+            return False
+        
+        models = cls.AI_MODELS[provider_key]['models']
+        for i, model in enumerate(models):
+            if model['id'] == model_id:
+                models.pop(i)
+                return True
+        return False
+    
+    @classmethod
     def is_production(cls) -> bool:
         """检查是否为生产环境"""
         return os.environ.get('FLASK_ENV') == 'production'
